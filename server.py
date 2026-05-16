@@ -46,6 +46,15 @@ ENV_VAR_DEFS = [
     # Model
     ("LLM_MODEL", "Model", "model", False),
     # Providers
+    ("ANTHROPIC_API_KEY", "Anthropic API Key", "provider", True),
+    ("OPENAI_API_KEY", "OpenAI API Key", "provider", True),
+    ("GOOGLE_API_KEY", "Google / Gemini API Key", "provider", True),
+    ("GROQ_API_KEY", "Groq API Key", "provider", True),
+    ("MISTRAL_API_KEY", "Mistral API Key", "provider", True),
+    ("XAI_API_KEY", "xAI / Grok API Key", "provider", True),
+    ("TOGETHER_API_KEY", "Together AI API Key", "provider", True),
+    ("FIREWORKS_API_KEY", "Fireworks API Key", "provider", True),
+    ("PERPLEXITY_API_KEY", "Perplexity API Key", "provider", True),
     ("OPENROUTER_API_KEY", "OpenRouter API Key", "provider", True),
     ("DEEPSEEK_API_KEY", "DeepSeek API Key", "provider", True),
     ("DASHSCOPE_API_KEY", "DashScope API Key", "provider", True),
