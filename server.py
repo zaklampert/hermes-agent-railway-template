@@ -47,6 +47,7 @@ ENV_VAR_DEFS = [
     ("LLM_MODEL", "Model", "model", False),
     # Providers
     ("OPENROUTER_API_KEY", "OpenRouter API Key", "provider", True),
+    ("OPENCODE_GO_API_KEY", "Opencode Go API Key", "provider", True),
     ("DEEPSEEK_API_KEY", "DeepSeek API Key", "provider", True),
     ("DASHSCOPE_API_KEY", "DashScope API Key", "provider", True),
     ("GLM_API_KEY", "GLM / Z.AI API Key", "provider", True),
