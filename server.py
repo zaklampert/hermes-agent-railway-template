@@ -10,6 +10,7 @@ from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 from starlette.applications import Starlette
 from starlette.authentication import (
     AuthCredentials,
@@ -20,7 +21,7 @@ from starlette.authentication import (
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route
 from starlette.templating import Jinja2Templates
 
@@ -552,6 +553,75 @@ async def api_pairing_revoke(request: Request):
     return JSONResponse({"ok": True})
 
 
+DASHBOARD_ORIGIN = "http://127.0.0.1:9119"
+
+_HOP_BY_HOP = frozenset([
+    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    "te", "trailers", "transfer-encoding", "upgrade",
+])
+
+
+async def proxy_dashboard(request: Request):
+    auth_err = require_auth(request)
+    if auth_err:
+        return auth_err
+
+    path = request.url.path[len("/dashboard"):]
+    if not path.startswith("/"):
+        path = "/" + path
+
+    target = f"{DASHBOARD_ORIGIN}{path}"
+    if request.url.query:
+        target += f"?{request.url.query}"
+
+    fwd_headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in _HOP_BY_HOP | {"host"}
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            upstream = await client.request(
+                method=request.method,
+                url=target,
+                headers=fwd_headers,
+                content=await request.body(),
+                follow_redirects=False,
+            )
+    except httpx.ConnectError:
+        return PlainTextResponse("Dashboard not ready yet — try again in a moment", status_code=503)
+
+    resp_headers = {
+        k: v for k, v in upstream.headers.multi_items()
+        if k.lower() not in _HOP_BY_HOP | {"content-encoding", "content-length"}
+    }
+
+    if "location" in upstream.headers:
+        loc = upstream.headers["location"]
+        if loc.startswith("/"):
+            resp_headers["location"] = f"/dashboard{loc}"
+
+    content = upstream.content
+    content_type = upstream.headers.get("content-type", "")
+
+    if "text/html" in content_type:
+        html = content.decode("utf-8", errors="replace")
+        if '<base href="/">' in html:
+            html = html.replace('<base href="/">', '<base href="/dashboard/">')
+        elif "<base " not in html:
+            html = html.replace("<head>", '<head><base href="/dashboard/">', 1)
+        content = html.encode("utf-8")
+
+    resp_headers["content-length"] = str(len(content))
+
+    return Response(
+        content=content,
+        status_code=upstream.status_code,
+        headers=resp_headers,
+        media_type=content_type,
+    )
+
+
 async def auto_start_gateway():
     env_vars = read_env_file(ENV_FILE_PATH)
     has_provider = any(env_vars.get(key) for key in PROVIDER_KEYS)
@@ -562,6 +632,8 @@ async def auto_start_gateway():
 routes = [
     Route("/", homepage),
     Route("/health", health),
+    Route("/dashboard", proxy_dashboard),
+    Route("/dashboard/{path:path}", proxy_dashboard),
     Route("/api/config", api_config_get, methods=["GET"]),
     Route("/api/config", api_config_put, methods=["PUT"]),
     Route("/api/status", api_status),
